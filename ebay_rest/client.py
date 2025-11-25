@@ -1,0 +1,55 @@
+"""Main client class for eBay REST API SDK."""
+
+from ebay_rest.account.client import AccountClient
+from ebay_rest.auth import OAuth2Client
+from ebay_rest.base_client import BaseClient
+from ebay_rest.browse.client import BrowseClient
+from ebay_rest.inventory.client import InventoryClient
+from ebay_rest.orders.client import OrdersClient
+
+
+class EbayClient:
+    """
+    Main client for eBay REST API.
+
+    Provides access to all eBay API modules: Browse, Inventory, Orders, and Account.
+    """
+
+    def __init__(self, client_id: str, client_secret: str, sandbox: bool = False):
+        """
+        Initialize eBay client.
+
+        Args:
+            client_id: eBay application client ID
+            client_secret: eBay application client secret
+            sandbox: Whether to use sandbox environment (default: False)
+        """
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.sandbox = sandbox
+
+        # Initialize OAuth2 client
+        self.auth = OAuth2Client(
+            client_id=client_id,
+            client_secret=client_secret,
+            sandbox=sandbox,
+        )
+
+        # TODO: Set base URLs based on sandbox flag
+        # Production: https://api.ebay.com
+        # Sandbox: https://api.sandbox.ebay.com
+
+        # Initialize base HTTP client
+        base_url = "https://api.sandbox.ebay.com" if sandbox else "https://api.ebay.com"
+        self.base_client = BaseClient(
+            auth_client=self.auth,
+            base_url=base_url,
+            sandbox=sandbox,
+        )
+
+        # Initialize API module clients
+        self.browse = BrowseClient(base_client=self.base_client, sandbox=sandbox)
+        self.inventory = InventoryClient(base_client=self.base_client, sandbox=sandbox)
+        self.orders = OrdersClient(base_client=self.base_client, sandbox=sandbox)
+        self.account = AccountClient(base_client=self.base_client, sandbox=sandbox)
+
