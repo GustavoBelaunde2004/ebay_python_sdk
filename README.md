@@ -166,7 +166,7 @@ Bug reports and feature requests welcome via GitHub Issues.
 
 ## License
 
-MIT © Your Name. See [LICENSE](LICENSE) for details.
+MIT © Gustavo Belaunde. See [LICENSE](LICENSE) for details.
 
 ## Credits
 
