@@ -35,8 +35,7 @@ class BaseClient:
         self.base_url = base_url.rstrip("/")
         self.sandbox = sandbox
         self.session = requests.Session()
-
-        # TODO: Configure session headers, timeouts, retries if needed
+        self.timeout = 30  # Default timeout in seconds
 
     def _get_headers(self) -> dict[str, str]:
         """
@@ -45,11 +44,16 @@ class BaseClient:
         Returns:
             Dictionary of HTTP headers
         """
-        # TODO: Get auth header from auth_client.build_auth_header()
-        # TODO: Add Content-Type: application/json if needed
-        # TODO: Add Accept header
-        # TODO: Return combined headers
-        return {}
+        # Get authorization header from auth client
+        headers = self.auth_client.build_auth_header()
+
+        # Add standard headers
+        headers.update({
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        })
+
+        return headers
 
     def _handle_response(self, response: requests.Response) -> dict[str, Any]:
         """
@@ -69,17 +73,74 @@ class BaseClient:
             ValidationError: For 400/422 errors
             EbayAPIError: For other API errors
         """
-        # TODO: Check status code
-        # TODO: Parse JSON response if available
-        # TODO: Map status codes to appropriate exceptions:
-        #   - 401 -> AuthError
-        #   - 404 -> NotFoundError
-        #   - 429 -> RateLimitExceeded (extract retry_after if available)
-        #   - 400, 422 -> ValidationError
-        #   - 5xx -> ServerError
-        #   - Other -> EbayAPIError
-        # TODO: Return parsed JSON on success
-        raise NotImplementedError("Response handling not yet implemented")
+        status_code = response.status_code
+
+        # Try to parse JSON response
+        response_data = None
+        try:
+            if response.text:
+                response_data = response.json()
+        except Exception:
+            # If JSON parsing fails, use text response
+            response_data = {"error": response.text} if response.text else {}
+
+        # Map status codes to appropriate exceptions
+        if status_code == 401:
+            error_msg = "Authentication failed. Check your credentials."
+            if response_data and "error_description" in response_data:
+                error_msg = response_data["error_description"]
+            raise AuthError(error_msg, status_code=status_code, response_data=response_data)
+
+        elif status_code == 404:
+            error_msg = "Resource not found"
+            if response_data and "errors" in response_data:
+                # eBay API often returns errors array
+                errors = response_data["errors"]
+                if errors and isinstance(errors, list) and len(errors) > 0:
+                    error_msg = errors[0].get("message", error_msg)
+            raise NotFoundError(error_msg, status_code=status_code, response_data=response_data)
+
+        elif status_code == 429:
+            retry_after = None
+            if "Retry-After" in response.headers:
+                try:
+                    retry_after = int(response.headers["Retry-After"])
+                except ValueError:
+                    pass
+            error_msg = "Rate limit exceeded"
+            if response_data and "errors" in response_data:
+                errors = response_data["errors"]
+                if errors and isinstance(errors, list) and len(errors) > 0:
+                    error_msg = errors[0].get("message", error_msg)
+            raise RateLimitExceeded(error_msg, retry_after=retry_after, status_code=status_code, response_data=response_data)
+
+        elif status_code in (400, 422):
+            error_msg = "Request validation failed"
+            if response_data and "errors" in response_data:
+                errors = response_data["errors"]
+                if errors and isinstance(errors, list) and len(errors) > 0:
+                    error_msg = errors[0].get("message", error_msg)
+            raise ValidationError(error_msg, status_code=status_code, response_data=response_data)
+
+        elif 500 <= status_code < 600:
+            error_msg = "eBay API server error"
+            if response_data and "errors" in response_data:
+                errors = response_data["errors"]
+                if errors and isinstance(errors, list) and len(errors) > 0:
+                    error_msg = errors[0].get("message", error_msg)
+            raise ServerError(error_msg, status_code=status_code, response_data=response_data)
+
+        elif not (200 <= status_code < 300):
+            # Other 4xx or unexpected status codes
+            error_msg = f"API request failed with status {status_code}"
+            if response_data and "errors" in response_data:
+                errors = response_data["errors"]
+                if errors and isinstance(errors, list) and len(errors) > 0:
+                    error_msg = errors[0].get("message", error_msg)
+            raise EbayAPIError(error_msg, status_code=status_code, response_data=response_data)
+
+        # Success - return parsed JSON or empty dict
+        return response_data if response_data is not None else {}
 
     def get(self, path: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
@@ -95,12 +156,21 @@ class BaseClient:
         Raises:
             EbayAPIError: If request fails
         """
-        # TODO: Build full URL from base_url and path
-        # TODO: Get headers using _get_headers()
-        # TODO: Make GET request using session
-        # TODO: Handle response using _handle_response()
-        # TODO: Return response data
-        raise NotImplementedError("GET method not yet implemented")
+        # Build full URL
+        url = f"{self.base_url}/{path.lstrip('/')}"
+
+        # Get headers
+        headers = self._get_headers()
+
+        try:
+            # Make GET request
+            response = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
+
+            # Handle response and return data
+            return self._handle_response(response)
+
+        except requests.RequestException as e:
+            raise EbayAPIError(f"Network error during GET request: {str(e)}")
 
     def post(self, path: str, json: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
@@ -116,12 +186,21 @@ class BaseClient:
         Raises:
             EbayAPIError: If request fails
         """
-        # TODO: Build full URL from base_url and path
-        # TODO: Get headers using _get_headers()
-        # TODO: Make POST request using session
-        # TODO: Handle response using _handle_response()
-        # TODO: Return response data
-        raise NotImplementedError("POST method not yet implemented")
+        # Build full URL
+        url = f"{self.base_url}/{path.lstrip('/')}"
+
+        # Get headers
+        headers = self._get_headers()
+
+        try:
+            # Make POST request
+            response = self.session.post(url, json=json, headers=headers, timeout=self.timeout)
+
+            # Handle response and return data
+            return self._handle_response(response)
+
+        except requests.RequestException as e:
+            raise EbayAPIError(f"Network error during POST request: {str(e)}")
 
     def put(self, path: str, json: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
@@ -137,12 +216,21 @@ class BaseClient:
         Raises:
             EbayAPIError: If request fails
         """
-        # TODO: Build full URL from base_url and path
-        # TODO: Get headers using _get_headers()
-        # TODO: Make PUT request using session
-        # TODO: Handle response using _handle_response()
-        # TODO: Return response data
-        raise NotImplementedError("PUT method not yet implemented")
+        # Build full URL
+        url = f"{self.base_url}/{path.lstrip('/')}"
+
+        # Get headers
+        headers = self._get_headers()
+
+        try:
+            # Make PUT request
+            response = self.session.put(url, json=json, headers=headers, timeout=self.timeout)
+
+            # Handle response and return data
+            return self._handle_response(response)
+
+        except requests.RequestException as e:
+            raise EbayAPIError(f"Network error during PUT request: {str(e)}")
 
     def delete(self, path: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
@@ -158,10 +246,19 @@ class BaseClient:
         Raises:
             EbayAPIError: If request fails
         """
-        # TODO: Build full URL from base_url and path
-        # TODO: Get headers using _get_headers()
-        # TODO: Make DELETE request using session
-        # TODO: Handle response using _handle_response()
-        # TODO: Return response data
-        raise NotImplementedError("DELETE method not yet implemented")
+        # Build full URL
+        url = f"{self.base_url}/{path.lstrip('/')}"
+
+        # Get headers
+        headers = self._get_headers()
+
+        try:
+            # Make DELETE request
+            response = self.session.delete(url, params=params, headers=headers, timeout=self.timeout)
+
+            # Handle response and return data
+            return self._handle_response(response)
+
+        except requests.RequestException as e:
+            raise EbayAPIError(f"Network error during DELETE request: {str(e)}")
 
