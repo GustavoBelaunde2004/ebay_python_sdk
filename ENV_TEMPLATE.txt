@@ -1,0 +1,12 @@
+# eBay API Credentials
+# Copy this content to a new file named .env (in the project root)
+# Never commit .env to git (it's already in .gitignore)
+
+# Sandbox credentials (for testing)
+EBAY_CLIENT_ID=your_sandbox_client_id_here
+EBAY_CLIENT_SECRET=your_sandbox_client_secret_here
+
+# Production credentials (only fill these when ready for production)
+# EBAY_PROD_CLIENT_ID=your_production_client_id_here
+# EBAY_PROD_CLIENT_SECRET=your_production_client_secret_here
+
