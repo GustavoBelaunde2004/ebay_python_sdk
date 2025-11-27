@@ -1,77 +1,72 @@
 """Tests for Inventory API client."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
-from ebay_rest.errors import NotFoundError, ValidationError
 from ebay_rest.inventory.client import InventoryClient
+from ebay_rest.inventory.models import InventoryItem
 
 
 class TestInventoryClient:
     """Test suite for InventoryClient."""
 
     def test_init(self, mock_base_client, sandbox_flag: bool):
-        """
-        Test InventoryClient initialization.
-
-        TODO: Implement test
-        """
-        # TODO: Test that InventoryClient initializes correctly
+        """InventoryClient stores base client and sandbox flag."""
         client = InventoryClient(base_client=mock_base_client, sandbox=sandbox_flag)
         assert client.base_client == mock_base_client
-        assert client.sandbox == sandbox_flag
+        assert client.sandbox is sandbox_flag
 
-    def test_get_inventory_item(self, mock_inventory_client: InventoryClient):
-        """
-        Test get inventory item by SKU.
+    def test_get_inventory_item_success(self, mock_inventory_client: InventoryClient):
+        """get_inventory_item should invoke base client with SKU."""
+        mock_inventory_client.base_client.get = MagicMock(
+            return_value={"sku": "SKU123", "condition": "NEW"}
+        )
 
-        TODO: Implement test
-        """
-        # TODO: Mock successful inventory item response
-        # TODO: Test that get_inventory_item() returns item details
-        # TODO: Test that SKU is passed correctly in URL
-        pass
+        result = mock_inventory_client.get_inventory_item("SKU123")
 
-    def test_get_inventory_item_not_found(self, mock_inventory_client: InventoryClient):
-        """
-        Test get inventory item with invalid SKU.
+        mock_inventory_client.base_client.get.assert_called_once_with(
+            "/sell/inventory/v1/inventory_item/SKU123"
+        )
+        assert result["sku"] == "SKU123"
 
-        TODO: Implement test
-        """
-        # TODO: Mock 404 response
-        # TODO: Test that NotFoundError is raised
-        pass
+    def test_get_inventory_item_empty_sku(self, mock_inventory_client: InventoryClient):
+        """Empty SKU should raise ValueError."""
+        with pytest.raises(ValueError):
+            mock_inventory_client.get_inventory_item("")
 
-    def test_list_inventory_items(self, mock_inventory_client: InventoryClient):
-        """
-        Test list inventory items functionality.
+    def test_list_inventory_items_validates_params(self, mock_inventory_client: InventoryClient):
+        """Invalid pagination params raise ValueError."""
+        with pytest.raises(ValueError):
+            mock_inventory_client.list_inventory_items(limit=0)
+        with pytest.raises(ValueError):
+            mock_inventory_client.list_inventory_items(offset=-1)
 
-        TODO: Implement test
-        """
-        # TODO: Mock successful list response
-        # TODO: Test that list_inventory_items() returns list of items
-        # TODO: Test limit parameter works
-        # TODO: Test offset parameter for pagination
-        pass
+    def test_list_inventory_items_parses_response(self, mock_inventory_client: InventoryClient):
+        """list_inventory_items should parse inventory items list."""
+        mock_inventory_client.base_client.get = MagicMock(
+            return_value={
+                "inventoryItems": [{"sku": "A"}, {"sku": "B"}],
+                "total": 2,
+                "offset": 0,
+                "limit": 2,
+            }
+        )
 
-    def test_create_inventory_item(self, mock_inventory_client: InventoryClient):
-        """
-        Test create inventory item functionality.
+        response = mock_inventory_client.list_inventory_items(limit=2, offset=0)
 
-        TODO: Implement test
-        """
-        # TODO: Mock successful create response
-        # TODO: Test that create_inventory_item() creates item
-        # TODO: Test that inventory_item data is validated
-        # TODO: Test that SKU is passed correctly in URL
-        pass
+        assert len(response["inventory_items"]) == 2
+        assert response["total"] == 2
+        mock_inventory_client.base_client.get.assert_called_once()
 
-    def test_create_inventory_item_validation_error(self, mock_inventory_client: InventoryClient):
-        """
-        Test create inventory item with invalid data.
+    def test_create_inventory_item_with_model(self, mock_inventory_client: InventoryClient):
+        """create_inventory_item accepts InventoryItem models."""
+        mock_inventory_client.base_client.put = MagicMock(return_value={})
+        model = InventoryItem(sku="SKU999", condition="NEW")
 
-        TODO: Implement test
-        """
-        # TODO: Mock 400/422 response
-        # TODO: Test that ValidationError is raised
-        pass
+        response = mock_inventory_client.create_inventory_item("SKU999", model)
+
+        assert response == {}
+        mock_inventory_client.base_client.put.assert_called_once()
+
 

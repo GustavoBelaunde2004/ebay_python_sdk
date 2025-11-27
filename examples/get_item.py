@@ -1,44 +1,35 @@
 """Example: Get detailed information about a specific eBay item."""
 
+"""Example: Get detailed information about a specific eBay item."""
+
+import os
+from dotenv import load_dotenv
+
 from ebay_rest import EbayClient
 from ebay_rest.errors import NotFoundError
 
+load_dotenv()
+
 
 def main():
-    """
-    Example demonstrating how to get detailed item information.
-
-    TODO:
-        - Replace placeholder credentials with actual eBay API credentials
-        - Replace placeholder item_id with actual eBay item ID
-        - Set sandbox=True for testing, False for production
-    """
-    # Initialize the eBay client
     client = EbayClient(
-        client_id="YOUR_CLIENT_ID_HERE",
-        client_secret="YOUR_CLIENT_SECRET_HERE",
-        sandbox=True,  # Set to False for production
+        client_id=os.getenv("EBAY_CLIENT_ID", "YOUR_CLIENT_ID"),
+        client_secret=os.getenv("EBAY_CLIENT_SECRET", "YOUR_CLIENT_SECRET"),
+        sandbox=True,
+        user_access_token=os.getenv("EBAY_USER_ACCESS_TOKEN"),
     )
 
-    # Get item details
-    # TODO: Replace with actual eBay item ID
-    item_id = "123456789"
+    item_id = os.getenv("EBAY_ITEM_ID", "1234567890")
 
     try:
-        # TODO: Uncomment when get_item is implemented
-        # item = client.browse.get_item(item_id=item_id)
-        # print(f"Item: {item.get('title')}")
-        # print(f"Price: ${item.get('price', {}).get('value')}")
-        # print(f"Condition: {item.get('condition')}")
-        # print(f"Description: {item.get('description', '')[:200]}...")
-
-        print("TODO: Implement get_item functionality")
-        print(f"Would fetch item with ID: {item_id}")
-
+        item = client.browse.get_item(item_id=item_id)
+        print(f"Item: {item.get('title')}")
+        print(f"Price: {item.get('price', {}).get('value')}")
+        print(f"Condition: {item.get('condition')}")
     except NotFoundError:
         print(f"Item {item_id} not found")
-    except Exception as e:
-        print(f"Error fetching item: {e}")
+    except Exception as exc:
+        print(f"Error fetching item: {exc}")
 
 
 if __name__ == "__main__":

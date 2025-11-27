@@ -28,7 +28,7 @@
 - ✅ **Browse API** (search items + get item details) verified against sandbox
 - ✅ **Orders API** client (list + get order) with typed models  
   ⚠ requires Sell Fulfillment scope + sandbox orders
-- ✅ **Helper scripts** (`simple_*_test.py`) to validate credentials quickly
+- ✅ **Helper scripts** (`examples/example_*_test.py`) to validate credentials quickly
 - 🚧 **Inventory / Account clients** stubbed and ready for implementation
 - 🚧 **Pagination helper** placeholder for iterating large result sets
 
@@ -62,7 +62,7 @@ cd ebay-rest
 python -m venv .venv && source .venv/bin/activate  # or .venv\Scripts\activate
 pip install -e ".[dev]"
 cp ENV_TEMPLATE.txt .env && edit .env  # add EBAY_CLIENT_ID / SECRET
-python simple_browse_test.py           # smoke test browse API
+python examples/example_browse_test.py # smoke test browse API
 ```
 
 ### Minimal usage
@@ -96,7 +96,7 @@ print(items["items"][0]["title"])
 
 - Store them in `.env` (already gitignored).  
 - Helper scripts automatically call `dotenv.load_dotenv()`.
-- `simple_auth_test.py`, `simple_browse_test.py`, `simple_orders_test.py` provide quick verification.
+- `examples/example_auth_test.py`, `examples/example_browse_test.py`, `examples/example_inventory_test.py`, `examples/example_orders_test.py` provide quick verification.
 
 ### OAuth scopes
 
