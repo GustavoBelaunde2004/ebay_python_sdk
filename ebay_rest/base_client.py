@@ -22,7 +22,13 @@ class BaseClient:
     Handles authentication, error mapping, and common HTTP operations.
     """
 
-    def __init__(self, auth_client: OAuth2Client, base_url: str, sandbox: bool = False):
+    def __init__(
+        self,
+        auth_client: OAuth2Client,
+        base_url: str,
+        sandbox: bool = False,
+        user_access_token: Optional[str] = None,
+    ):
         """
         Initialize base client.
 
@@ -36,6 +42,7 @@ class BaseClient:
         self.sandbox = sandbox
         self.session = requests.Session()
         self.timeout = 30  # Default timeout in seconds
+        self.user_access_token = user_access_token
 
     def _get_headers(self) -> dict[str, str]:
         """
@@ -44,8 +51,11 @@ class BaseClient:
         Returns:
             Dictionary of HTTP headers
         """
-        # Get authorization header from auth client
-        headers = self.auth_client.build_auth_header()
+        # Use override token for Sell APIs if provided
+        if self.user_access_token:
+            headers = {"Authorization": f"Bearer {self.user_access_token}"}
+        else:
+            headers = self.auth_client.build_auth_header()
 
         # Add standard headers
         headers.update({
@@ -54,6 +64,15 @@ class BaseClient:
         })
 
         return headers
+
+    def set_user_access_token(self, token: Optional[str]) -> None:
+        """
+        Override the access token used for requests (e.g., Sell API user token).
+
+        Args:
+            token: Bearer token string or None to revert to client credentials.
+        """
+        self.user_access_token = token
 
     def _handle_response(self, response: requests.Response) -> dict[str, Any]:
         """

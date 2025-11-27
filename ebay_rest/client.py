@@ -15,7 +15,13 @@ class EbayClient:
     Provides access to all eBay API modules: Browse, Inventory, Orders, and Account.
     """
 
-    def __init__(self, client_id: str, client_secret: str, sandbox: bool = False):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        sandbox: bool = False,
+        user_access_token: str | None = None,
+    ):
         """
         Initialize eBay client.
 
@@ -45,6 +51,7 @@ class EbayClient:
             auth_client=self.auth,
             base_url=base_url,
             sandbox=sandbox,
+            user_access_token=user_access_token,
         )
 
         # Initialize API module clients
@@ -52,4 +59,14 @@ class EbayClient:
         self.inventory = InventoryClient(base_client=self.base_client, sandbox=sandbox)
         self.orders = OrdersClient(base_client=self.base_client, sandbox=sandbox)
         self.account = AccountClient(base_client=self.base_client, sandbox=sandbox)
+
+    def set_user_access_token(self, token: str | None) -> None:
+        """
+        Override the access token used for Sell APIs.
+
+        Pass a user token obtained via the Authorization Code flow to call
+        seller endpoints (inventory, orders, account). Pass None to revert
+        to application (client-credentials) tokens.
+        """
+        self.base_client.set_user_access_token(token)
 
