@@ -1,6 +1,7 @@
 """Pagination utilities for eBay API responses."""
 
 from typing import Any, Callable, Generator, Optional
+from urllib.parse import parse_qs, urlparse
 
 
 def paginate(
@@ -8,6 +9,10 @@ def paginate(
     *args: Any,
     limit: Optional[int] = None,
     max_pages: Optional[int] = None,
+    items_key: str = "items",
+    next_key: str = "next",
+    offset_param: str = "offset",
+    limit_param: str = "limit",
     **kwargs: Any,
 ) -> Generator[dict[str, Any], None, None]:
     """
@@ -20,30 +25,71 @@ def paginate(
         *args: Positional arguments to pass to client_method
         limit: Maximum number of items to return (None for all)
         max_pages: Maximum number of pages to fetch (None for all)
+        items_key: Response key that contains items (default "items")
+        next_key: Response key that contains next page URL (default "next")
+        offset_param: Query parameter used for offset-based pagination
+        limit_param: Query parameter used for per-page limit
         **kwargs: Keyword arguments to pass to client_method
 
     Yields:
         Individual items from paginated responses
-
-    Example:
-        >>> for item in paginate(client.browse.search_items, query="laptop", limit=100):
-        ...     print(item.title)
-
-    TODO:
-        - Implement pagination logic
-        - Handle different pagination schemes (offset-based, cursor-based)
-        - Respect limit parameter
-        - Respect max_pages parameter
-        - Handle API rate limiting
-        - Handle pagination metadata in responses
     """
-    # TODO: Call client_method with initial arguments
-    # TODO: Extract items from response
-    # TODO: Yield items one by one
-    # TODO: Check for next page token/cursor in response
-    # TODO: Continue fetching pages until no more pages or limit reached
-    # TODO: Handle different pagination patterns used by eBay APIs
-    raise NotImplementedError("Pagination not yet implemented")
+
+    emitted = 0
+    page_count = 0
+    request_kwargs = dict(kwargs)
+
+    while True:
+        response = client_method(*args, **request_kwargs)
+        items = response.get(items_key)
+        if not isinstance(items, list):
+            items = []
+
+        for item in items:
+            yield item
+            emitted += 1
+            if limit is not None and emitted >= limit:
+                return
+
+        page_count += 1
+        if max_pages is not None and page_count >= max_pages:
+            return
+
+        next_href = response.get(next_key)
+        next_offset = None
+
+        if next_href:
+            next_offset = _extract_offset_from_href(next_href, offset_param)
+
+        if next_offset is None:
+            # Attempt to calculate using existing offset/limit values
+            current_limit = request_kwargs.get(limit_param)
+            if current_limit is None:
+                current_limit = response.get(limit_param)
+            current_offset = request_kwargs.get(offset_param, response.get(offset_param))
+
+            if current_limit is not None and current_offset is not None:
+                next_offset = current_offset + current_limit
+
+        if next_offset is None:
+            # No further data
+            return
+
+        request_kwargs[offset_param] = next_offset
+
+
+def _extract_offset_from_href(href: str, offset_param: str) -> Optional[int]:
+    """Extract offset value from next page href."""
+    if not href:
+        return None
+    parsed = urlparse(href)
+    params = parse_qs(parsed.query)
+    if offset_param in params and params[offset_param]:
+        try:
+            return int(params[offset_param][0])
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 class Paginator:
@@ -69,32 +115,21 @@ class Paginator:
             *args: Positional arguments for client_method
             limit: Maximum number of items to return
             max_pages: Maximum number of pages to fetch
-            **kwargs: Keyword arguments for client_method
+            **kwargs: Keyword arguments for client_method and paginate()
         """
-        self.client_method = client_method
-        self.args = args
-        self.kwargs = kwargs
-        self.limit = limit
-        self.max_pages = max_pages
-
-        # TODO: Initialize pagination state (current page, items returned, etc.)
+        self._generator = paginate(
+            client_method,
+            *args,
+            limit=limit,
+            max_pages=max_pages,
+            **kwargs,
+        )
 
     def __iter__(self) -> "Paginator":
         """Return iterator."""
         return self
 
     def __next__(self) -> dict[str, Any]:
-        """
-        Get next item from paginated results.
-
-        Returns:
-            Next item from API response
-
-        Raises:
-            StopIteration: When no more items are available
-        """
-        # TODO: Implement next item retrieval
-        # TODO: Fetch next page if needed
-        # TODO: Return next item or raise StopIteration
-        raise NotImplementedError("Paginator iteration not yet implemented")
+        """Return next item or raise StopIteration."""
+        return next(self._generator)
 

@@ -1,8 +1,9 @@
 """Inventory API client for managing inventory items."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from ebay_rest.base_client import BaseClient
+from ebay_rest.inventory.models import InventoryItem, InventoryItemsResponse
 
 
 class InventoryClient:
@@ -23,7 +24,7 @@ class InventoryClient:
         self.base_client = base_client
         self.sandbox = sandbox
 
-    def get_inventory_item(self, sku: str) -> dict:
+    def get_inventory_item(self, sku: str) -> dict[str, Any]:
         """
         Get inventory item by SKU.
 
@@ -32,73 +33,89 @@ class InventoryClient:
 
         Returns:
             Dictionary containing inventory item details
-
-        Raises:
-            NotFoundError: If inventory item is not found
-            EbayAPIError: If the request fails
-
-        TODO:
-            - Implement API endpoint call
-            - Parse and return InventoryItem model
         """
-        # TODO: Build endpoint path: /sell/inventory/v1/inventory_item/{sku}
-        # TODO: Call base_client.get() with path
-        # TODO: Parse response and return InventoryItem model
-        raise NotImplementedError("get_inventory_item not yet implemented")
+        if not sku or not sku.strip():
+            raise ValueError("SKU cannot be empty")
+
+        endpoint = f"/sell/inventory/v1/inventory_item/{sku.strip()}"
+        response_data = self.base_client.get(endpoint)
+
+        try:
+            item = InventoryItem(**response_data)
+            return item.model_dump()
+        except Exception:
+            return response_data
 
     def list_inventory_items(
         self,
         limit: int = 50,
         offset: int = 0,
-        **kwargs: dict,
-    ) -> dict:
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         """
         List inventory items.
 
         Args:
-            limit: Maximum number of items to return (default: 50)
+            limit: Maximum number of items to return (default: 50, max 200)
             offset: Number of results to skip (for pagination)
             **kwargs: Additional query parameters
 
         Returns:
-            Dictionary containing list of inventory items
-
-        Raises:
-            EbayAPIError: If the request fails
-
-        TODO:
-            - Implement API endpoint call
-            - Handle pagination
-            - Parse and return list of InventoryItem models
+            Dictionary containing list of inventory items & pagination metadata
         """
-        # TODO: Build endpoint path: /sell/inventory/v1/inventory_item
-        # TODO: Build query parameters dict
-        # TODO: Call base_client.get() with path and params
-        # TODO: Parse response and return list of InventoryItem models
-        raise NotImplementedError("list_inventory_items not yet implemented")
+        if limit < 1 or limit > 200:
+            raise ValueError("limit must be between 1 and 200")
 
-    def create_inventory_item(self, sku: str, inventory_item: dict) -> dict:
+        if offset < 0:
+            raise ValueError("offset must be >= 0")
+
+        params: Dict[str, Any] = {
+            "limit": limit,
+            "offset": offset,
+        }
+        params.update(kwargs)
+
+        endpoint = "/sell/inventory/v1/inventory_item"
+        response_data = self.base_client.get(endpoint, params=params)
+
+        try:
+            collection = InventoryItemsResponse(**response_data)
+            return {
+                "inventory_items": [item.model_dump() for item in collection.inventory_items],
+                "href": collection.href,
+                "limit": collection.limit,
+                "offset": collection.offset,
+                "total": collection.total,
+                "next": collection.next,
+                "prev": collection.prev,
+            }
+        except Exception:
+            return response_data
+
+    def create_inventory_item(self, sku: str, inventory_item: Any) -> dict[str, Any]:
         """
-        Create a new inventory item.
+        Create or replace an inventory item.
 
         Args:
             sku: Seller-defined SKU for the inventory item
-            inventory_item: Inventory item data
+            inventory_item: Inventory item data (dict or InventoryItem)
 
         Returns:
-            Dictionary containing created inventory item
-
-        Raises:
-            ValidationError: If inventory item data is invalid
-            EbayAPIError: If the request fails
-
-        TODO:
-            - Implement API endpoint call
-            - Validate inventory_item data
-            - Parse and return InventoryItem model
+            API response data (often empty for successful PUT)
         """
-        # TODO: Build endpoint path: /sell/inventory/v1/inventory_item/{sku}
-        # TODO: Call base_client.put() with path and inventory_item JSON
-        # TODO: Parse response and return InventoryItem model
-        raise NotImplementedError("create_inventory_item not yet implemented")
+        if not sku or not sku.strip():
+            raise ValueError("SKU cannot be empty")
 
+        if hasattr(inventory_item, "model_dump"):
+            payload = inventory_item.model_dump(by_alias=True, exclude_none=True)
+        else:
+            payload = inventory_item
+
+        if not isinstance(payload, dict):
+            raise ValueError("inventory_item must be a dict or InventoryItem model")
+
+        endpoint = f"/sell/inventory/v1/inventory_item/{sku.strip()}"
+        response_data = self.base_client.put(endpoint, json=payload)
+
+        # Most successful PUT operations return empty body (204 No Content)
+        return response_data or {}
