@@ -37,8 +37,13 @@ class OAuth2Client:
         else:
             self.oauth_url = "https://api.ebay.com/identity/v1/oauth2/token"
 
-        # Default scope for eBay API
-        self.scope = "https://api.ebay.com/oauth/api_scope"
+        # Default scopes for eBay API
+        self.scopes = [
+            "https://api.ebay.com/oauth/api_scope",
+            "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly",
+            "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
+            "https://api.ebay.com/oauth/api_scope/sell.account.readonly",
+        ]
 
     def get_access_token(self) -> str:
         """
@@ -85,7 +90,7 @@ class OAuth2Client:
             # Build request body
             data = {
                 "grant_type": "client_credentials",
-                "scope": self.scope,
+                "scope": " ".join(self.scopes),
             }
 
             # Make POST request to OAuth token endpoint

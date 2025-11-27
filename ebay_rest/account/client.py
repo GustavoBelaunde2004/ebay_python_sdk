@@ -1,5 +1,6 @@
 """Account API client for accessing account information."""
 
+from ebay_rest.account.models import AccountProfile
 from ebay_rest.base_client import BaseClient
 
 
@@ -23,20 +24,16 @@ class AccountClient:
 
     def get_account_profile(self) -> dict:
         """
-        Get account profile information.
+        Get account privilege/profile information.
 
         Returns:
-            Dictionary containing account profile
-
-        Raises:
-            EbayAPIError: If the request fails
-
-        TODO:
-            - Implement API endpoint call
-            - Parse and return AccountProfile model
+            Dictionary containing account profile information.
         """
-        # TODO: Build endpoint path: /sell/account/v1/privilege
-        # TODO: Call base_client.get() with path
-        # TODO: Parse response and return AccountProfile model
-        raise NotImplementedError("get_account_profile not yet implemented")
+        endpoint = "/sell/account/v1/privilege"
+        response_data = self.base_client.get(endpoint)
 
+        try:
+            profile = AccountProfile(**response_data)
+            return profile.model_dump()
+        except Exception:
+            return response_data
