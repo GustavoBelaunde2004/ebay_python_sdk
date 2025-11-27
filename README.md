@@ -74,6 +74,8 @@ client = EbayClient(
     client_id="YOUR_SANDBOX_APP_ID",
     client_secret="YOUR_SANDBOX_CERT_ID",
     sandbox=True,
+    # Optional: provide a user access token (Sell APIs)
+    user_access_token=os.getenv("EBAY_USER_ACCESS_TOKEN"),
 )
 
 items = client.browse.search_items(query="laptop", limit=5)
@@ -82,11 +84,15 @@ print(items["items"][0]["title"])
 
 ## Environment & Configuration
 
-| Variable             | Description                                |
-|----------------------|--------------------------------------------|
-| `EBAY_CLIENT_ID`     | Your sandbox/production App ID (client_id) |
-| `EBAY_CLIENT_SECRET` | Your Cert ID (client_secret)               |
-| `EBAY_PROD_*`        | Optional production credentials (future)   |
+| Variable                | Description                                                             |
+|-------------------------|-------------------------------------------------------------------------|
+| `EBAY_CLIENT_ID`        | Your sandbox/production App ID (client_id)                              |
+| `EBAY_CLIENT_SECRET`    | Your Cert ID (client_secret)                                            |
+| `EBAY_USER_ACCESS_TOKEN`| Optional user token for Sell APIs (from Authorization Code flow)        |
+| `EBAY_REDIRECT_URI`     | URL-encoded Redirect URI (RuName) registered in eBay Developer Portal   |
+| `EBAY_OAUTH_SCOPES`     | Space-delimited scopes for user consent (e.g. `https://.../sell.inventory`) |
+| `EBAY_ENV`              | `sandbox` (default) or `production` for OAuth helpers                   |
+| `EBAY_PROD_*`           | Optional production credentials (future)                                |
 
 - Store them in `.env` (already gitignored).  
 - Helper scripts automatically call `dotenv.load_dotenv()`.
@@ -94,10 +100,37 @@ print(items["items"][0]["title"])
 
 ### OAuth scopes
 
-- Default scope: `https://api.ebay.com/oauth/api_scope` (Buy APIs)
-- Sell Fulfillment requires `https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly`
-- eBay must approve Sell API access for your app. Request it in the developer portal → Application Keys → “Add APIs”.
-- Without Sell scope approval you’ll see “Access denied” when calling Orders endpoints.
+- **Buy scope** (default, included): `https://api.ebay.com/oauth/api_scope`
+- **Sell Fulfillment** (orders): `https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly`
+- **Sell Inventory** (inventory): `https://api.ebay.com/oauth/api_scope/sell.inventory.readonly`
+- **Sell Account** (privileges/programs): `https://api.ebay.com/oauth/api_scope/sell.account.readonly`
+
+> Client credentials tokens only cover Buy APIs. For Sell APIs you must obtain a **user access token**
+> via the Authorization Code flow. Each seller runs through consent once; store their refresh token.
+
+### Obtaining a Sell API user token
+
+1. In the eBay Developer Portal, register a redirect URI (RuName) for your app. Note the encoded value.
+2. Create a sandbox seller user if you haven't already:
+   - Portal path: **Develop → Tools → eBay Sandbox → Create Test Users**
+   - Choose “Seller” type, set a password via “Sandbox User Password” tool.
+3. Set these env vars:
+   ```
+   EBAY_CLIENT_ID=YourSandboxAppID
+   EBAY_CLIENT_SECRET=YourSandboxCertID
+   EBAY_REDIRECT_URI=YourEncodedRuName
+   EBAY_OAUTH_SCOPES="https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.fulfillment"
+   ```
+4. Run the helper script:
+   ```bash
+   python scripts/oauth_authorize.py
+   ```
+   It prints a consent URL. Open it, log in as your sandbox seller, and paste the returned `code`.
+5. Alternatively, you can grab a sandbox user token from **Application Keys → Sandbox App → “User Tokens”** (uses eBay’s hosted OAuth UI).
+6. The script outputs an access token + refresh token. Store them securely (e.g., `.env` using `EBAY_USER_ACCESS_TOKEN`).
+6. Pass the access token to `EbayClient` (or call `client.set_user_access_token()`).
+
+When the access token expires, call `oauth.refresh_user_token()` with the refresh token to get a new one.
 
 ## Usage Examples
 
@@ -125,6 +158,41 @@ else:
     print("No orders yet. Create sandbox orders to exercise this API.")
 ```
 
+### Inventory (requires Sell Inventory scope)
+
+```python
+inventory = client.inventory.list_inventory_items(limit=10)
+if inventory["inventory_items"]:
+    first_sku = inventory["inventory_items"][0]["sku"]
+    item = client.inventory.get_inventory_item(sku=first_sku)
+    print(item["availability"]["ship_to_location_availability"]["quantity"])
+
+client.inventory.create_inventory_item(
+    sku="DEMO-SKU-001",
+    inventory_item={
+        "condition": "NEW",
+        "product": {"title": "Demo Widget"},
+        "availability": {"shipToLocationAvailability": {"quantity": 5}},
+    },
+)
+```
+
+> Tip: call `client.set_user_access_token("...")` at runtime if you fetch the user token elsewhere.
+
+### Pagination helper
+
+```python
+from ebay_rest.pagination import paginate
+
+for item in paginate(
+    client.inventory.list_inventory_items,
+    limit=100,              # total items to yield
+    items_key="inventory_items",
+    limit_param="limit",
+):
+    print(item["sku"])
+```
+
 ## API Coverage
 
 | Module     | Status | Notes |
@@ -133,18 +201,18 @@ else:
 | BaseClient | ✅     | Shared HTTP client w/ error mapping |
 | Browse     | ✅     | `search_items`, `get_item` tested against sandbox |
 | Orders     | ⚠️     | Implemented, requires Sell Fulfillment scope + sandbox data |
-| Inventory  | 🚧     | Client + models stubbed (implementation next) |
-| Account    | 🚧     | Client + models stubbed |
-| Pagination | 🚧     | Utility planned |
+| Inventory  | ⚠️     | get/list/create inventory item implemented (requires Sell Inventory scope) |
+| Account    | ⚠️     | privilege profile endpoint implemented (requires Sell Account scope) |
+| Pagination | ✅     | Generator + iterator helpers |
 
 ## Roadmap
 
 - [x] Auth + Base client
 - [x] Browse API (search + item details)
 - [x] Orders API (list + get)
-- [ ] Inventory API implementation
-- [ ] Account API implementation
-- [ ] Pagination helpers
+- [x] Inventory API implementation
+- [x] Account API implementation
+- [x] Pagination helpers
 - [ ] Unit tests + CI validation
 - [ ] Async client
 - [ ] Publish to PyPI
