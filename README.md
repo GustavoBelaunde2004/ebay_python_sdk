@@ -1,6 +1,6 @@
 # ebay-rest · Modern Python SDK for eBay REST APIs
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/yourusername/ebay-rest/tests.yml?label=tests)](#)
+[![Tests](https://img.shields.io/github/actions/workflow/status/GustavoBelaunde2004/ebay-rest/tests.yml?label=tests)](#)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](#)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -60,7 +60,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/ebay-rest.git
+git clone https://github.com/GustavoBelaunde2004/ebay-rest.git
 cd ebay-rest
 python -m venv .venv && source .venv/bin/activate  # or .venv\Scripts\activate
 pip install -e ".[dev]"
@@ -130,14 +130,9 @@ for item in results.get('items', [])[:3]:
    EBAY_REDIRECT_URI=YourEncodedRuName
    EBAY_OAUTH_SCOPES="https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.fulfillment"
    ```
-4. Run the helper script:
-   ```bash
-   python scripts/oauth_authorize.py
-   ```
-   It prints a consent URL. Open it, log in as your sandbox seller, and paste the returned `code`.
-5. Alternatively, you can grab a sandbox user token from **Application Keys → Sandbox App → “User Tokens”** (uses eBay’s hosted OAuth UI).
-6. The script outputs an access token + refresh token. Store them securely (e.g., `.env` using `EBAY_USER_ACCESS_TOKEN`).
-7. Pass the access token to `EbayClient` (or call `client.set_user_access_token()`).
+4. Alternatively, you can grab a sandbox user token from **Application Keys → Sandbox App → “User Tokens”** (uses eBay’s hosted OAuth UI).
+5. The script outputs an access token + refresh token. Store them securely (e.g., `.env` using `EBAY_USER_ACCESS_TOKEN`).
+6. Pass the access token to `EbayClient` (or call `client.set_user_access_token()`).
 
 When the access token expires, call `oauth.refresh_user_token()` with the refresh token to get a new one.
 
