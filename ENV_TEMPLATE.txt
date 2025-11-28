@@ -6,6 +6,10 @@
 EBAY_CLIENT_ID=your_sandbox_client_id_here
 EBAY_CLIENT_SECRET=your_sandbox_client_secret_here
 
+# User access token for Sell APIs (Inventory, Orders, Account)
+# Get from: https://developer.ebay.com/my/keys → Your Sandbox App → User Tokens
+EBAY_USER_ACCESS_TOKEN=your_user_access_token_here
+
 # Production credentials (only fill these when ready for production)
 # EBAY_PROD_CLIENT_ID=your_production_client_id_here
 # EBAY_PROD_CLIENT_SECRET=your_production_client_secret_here
