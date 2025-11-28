@@ -59,15 +59,28 @@ def paginate(
         next_offset = None
 
         if next_href:
+            # Use explicit next link if provided
             next_offset = _extract_offset_from_href(next_href, offset_param)
 
         if next_offset is None:
-            # Attempt to calculate using existing offset/limit values
+            # Only calculate next_offset if:
+            # 1. We got items on this page (there might be more)
+            # 2. We got a full page (suggesting there could be more data)
+            if not items:
+                # No items and no explicit next link - stop pagination
+                return
+
+            # Check if we got a full page of items
             current_limit = request_kwargs.get(limit_param)
             if current_limit is None:
                 current_limit = response.get(limit_param)
-            current_offset = request_kwargs.get(offset_param, response.get(offset_param))
+            
+            # If we got fewer items than the limit, we're done (no more pages)
+            if current_limit is not None and len(items) < current_limit:
+                return
 
+            # We got a full page, so calculate next offset
+            current_offset = request_kwargs.get(offset_param, response.get(offset_param))
             if current_limit is not None and current_offset is not None:
                 next_offset = current_offset + current_limit
 

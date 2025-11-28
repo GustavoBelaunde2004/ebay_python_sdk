@@ -1,42 +1,51 @@
 """Example: Search for items on eBay."""
 
+import os
+from dotenv import load_dotenv
+
 from ebay_rest import EbayClient
+
+load_dotenv()
 
 
 def main():
-    """
-    Example demonstrating how to search for items using the Browse API.
+    """Example demonstrating how to search for items using the Browse API."""
+    client_id = os.getenv("EBAY_CLIENT_ID")
+    client_secret = os.getenv("EBAY_CLIENT_SECRET")
 
-    TODO:
-        - Replace placeholder credentials with actual eBay API credentials
-        - Set sandbox=True for testing, False for production
-        - Implement result processing
-    """
+    if not client_id or not client_secret:
+        print("❌ Missing EBAY_CLIENT_ID or EBAY_CLIENT_SECRET in environment.")
+        return
+
     # Initialize the eBay client
     client = EbayClient(
-        client_id="YOUR_CLIENT_ID_HERE",
-        client_secret="YOUR_CLIENT_SECRET_HERE",
+        client_id=client_id,
+        client_secret=client_secret,
         sandbox=True,  # Set to False for production
     )
 
     # Search for items
-    # TODO: Replace with actual search query
     query = "laptop"
     limit = 10
 
     try:
-        # TODO: Uncomment when search_items is implemented
-        # results = client.browse.search_items(query=query, limit=limit)
-        # print(f"Found {len(results.get('items', []))} items")
-        #
-        # for item in results.get('items', []):
-        #     print(f"- {item.get('title')} (${item.get('price', {}).get('value')})")
-
-        print("TODO: Implement search_items functionality")
-        print(f"Would search for: '{query}' with limit: {limit}")
+        print(f"🔍 Searching for '{query}' (limit: {limit})...")
+        results = client.browse.search_items(query=query, limit=limit)
+        
+        items = results.get("items", [])
+        total = results.get("total", 0)
+        
+        print(f"✅ Found {len(items)} items (total available: {total})")
+        print()
+        
+        for i, item in enumerate(items, 1):
+            title = item.get("title", "N/A")
+            price = item.get("price", {}).get("value", "N/A")
+            currency = item.get("price", {}).get("currency", "")
+            print(f"{i}. {title} - {currency}${price}")
 
     except Exception as e:
-        print(f"Error searching items: {e}")
+        print(f"❌ Error searching items: {e}")
 
 
 if __name__ == "__main__":

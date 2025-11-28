@@ -138,3 +138,29 @@ class InventoryItemsResponse(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class BulkInventoryItem(BaseModel):
+    """Single item in a bulk inventory request."""
+
+    sku: str = Field(..., description="Seller-defined SKU")
+    inventory_item: InventoryItem = Field(..., alias="inventoryItem", description="Inventory item payload")
+
+    class Config:
+        populate_by_name = True
+
+
+class BulkInventoryItemRequest(BaseModel):
+    """Bulk create/replace request body."""
+
+    requests: List[BulkInventoryItem] = Field(..., description="Items to create or replace")
+
+    class Config:
+        populate_by_name = True
+
+
+class BulkInventoryItemResponse(BaseModel):
+    """Bulk create/replace response."""
+
+    responses: List[dict] = Field(default_factory=list, description="Per-item responses")
+

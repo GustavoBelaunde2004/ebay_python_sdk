@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from ebay_rest.inventory.client import InventoryClient
-from ebay_rest.inventory.models import InventoryItem
+from ebay_rest.inventory.models import BulkInventoryItem, InventoryItem
 
 
 class TestInventoryClient:
@@ -68,5 +68,25 @@ class TestInventoryClient:
 
         assert response == {}
         mock_inventory_client.base_client.put.assert_called_once()
+
+    def test_delete_inventory_item(self, mock_inventory_client: InventoryClient):
+        """delete_inventory_item should call base client delete."""
+        mock_inventory_client.base_client.delete = MagicMock(return_value={"status": "OK"})
+        response = mock_inventory_client.delete_inventory_item("SKU1")
+        mock_inventory_client.base_client.delete.assert_called_once()
+        assert response["status"] == "OK"
+
+    def test_bulk_create_inventory_items(self, mock_inventory_client: InventoryClient):
+        """bulk_create_or_replace_inventory_item accepts list or model."""
+        mock_inventory_client.base_client.post = MagicMock(
+            return_value={"responses": [{"sku": "A", "statusCode": 200}]}
+        )
+        bulk_item = BulkInventoryItem(
+            sku="A",
+            inventory_item=InventoryItem(sku="A", condition="NEW"),
+        )
+        response = mock_inventory_client.bulk_create_or_replace_inventory_item([bulk_item])
+        mock_inventory_client.base_client.post.assert_called_once()
+        assert response["responses"][0]["sku"] == "A"
 
 

@@ -1,6 +1,11 @@
 """Account API client for accessing account information."""
 
-from ebay_rest.account.models import AccountProfile
+from ebay_rest.account.models import (
+    AccountProfile,
+    PaymentPoliciesResponse,
+    ReturnPoliciesResponse,
+    ShippingPoliciesResponse,
+)
 from ebay_rest.base_client import BaseClient
 
 
@@ -34,6 +39,40 @@ class AccountClient:
 
         try:
             profile = AccountProfile(**response_data)
-            return profile.model_dump()
+            return profile.model_dump(by_alias=False, exclude_none=True)
+        except Exception:
+            return response_data
+
+    def get_account_privileges(self) -> dict:
+        """Alias for get_account_profile for clarity."""
+        return self.get_account_profile()
+
+    def list_return_policies(self, marketplace_id: str) -> dict:
+        """List return policies for a marketplace."""
+        endpoint = "/sell/account/v1/return_policy"
+        response_data = self.base_client.get(endpoint, params={"marketplace_id": marketplace_id})
+        try:
+            parsed = ReturnPoliciesResponse(**response_data)
+            return parsed.model_dump(by_alias=False, exclude_none=True)
+        except Exception:
+            return response_data
+
+    def list_payment_policies(self, marketplace_id: str) -> dict:
+        """List payment policies for a marketplace."""
+        endpoint = "/sell/account/v1/payment_policy"
+        response_data = self.base_client.get(endpoint, params={"marketplace_id": marketplace_id})
+        try:
+            parsed = PaymentPoliciesResponse(**response_data)
+            return parsed.model_dump(by_alias=False, exclude_none=True)
+        except Exception:
+            return response_data
+
+    def list_shipping_policies(self, marketplace_id: str) -> dict:
+        """List shipping policies for a marketplace."""
+        endpoint = "/sell/account/v1/shipping_policy"
+        response_data = self.base_client.get(endpoint, params={"marketplace_id": marketplace_id})
+        try:
+            parsed = ShippingPoliciesResponse(**response_data)
+            return parsed.model_dump(by_alias=False, exclude_none=True)
         except Exception:
             return response_data
