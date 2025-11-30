@@ -5,6 +5,9 @@
 
 > Batteries-included toolkit for building Python apps on top of eBay’s REST APIs (Buy + Sell).  
 > Handles OAuth2, HTTP plumbing, typed models, and provides friendly client classes.
+>
+> ⚠️ **Disclaimer**: This is an unofficial, community-maintained SDK. It is not affiliated with, endorsed by, or supported by eBay Inc.
+>      Use at your own risk.
 
 ---
 
