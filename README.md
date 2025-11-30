@@ -1,5 +1,6 @@
 # ebay-rest · Modern Python SDK for eBay REST APIs
 
+![Version](https://img.shields.io/github/v/release/GustavoBelaunde2004/ebay_python_sdk)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](#)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
