@@ -48,10 +48,10 @@
 ┌────▼────────┐
 │ BaseClient  │  ← auth, requests, error mapping
 └────┬────────┘
-     ├───────────────────────────────┐
+     ├───────────────┐───────────────┐────────────────┐
 ┌────▼─────┐  ┌──────▼─────┐  ┌──────▼──────┐  ┌──────▼──────┐
-│ Browse   │  │ Orders     │  │ Inventory   │  │ Account      │
-│ Client   │  │ Client     │  │ Client      │  │ Client       │
+│ Browse   │  │ Orders     │  │ Inventory   │  │ Account     │
+│ Client   │  │ Client     │  │ Client      │  │ Client      │
 └──────────┘  └────────────┘  └─────────────┘  └─────────────┘
 ```
 
