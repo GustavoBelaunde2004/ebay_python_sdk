@@ -5,8 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](#)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> Batteries-included toolkit for building Python apps on top of eBay’s REST APIs (Buy + Sell).  
-> Handles OAuth2, HTTP plumbing, typed models, and provides friendly client classes.
+
 >
 > ⚠️ **Disclaimer**: This is an unofficial, community-maintained SDK. It is not affiliated with, endorsed by, or supported by eBay Inc.
 >      Use at your own risk.
@@ -163,8 +162,15 @@ After the seller token is ready, populate the sandbox so Sell APIs have somethin
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# run automated tests (46 unit tests)
+# run automated tests (~105+ unit tests)
 pytest
+
+# run tests with coverage report
+pytest --cov=ebay_rest --cov-report=term-missing
+
+# generate HTML coverage report
+pytest --cov=ebay_rest --cov-report=html
+# then open htmlcov/index.html in your browser
 
 # lint / format
 ruff check .
@@ -174,7 +180,8 @@ black .
 mypy ebay_rest
 ```
 
-- **Unit tests**: 46 tests covering all API clients, auth, OAuth, and pagination
+- **Unit tests**: ~105+ tests covering all API clients, auth, OAuth, pagination, and BaseClient
+- **Code coverage**: Run `pytest --cov=ebay_rest` to see coverage report
 - **Manual testing**: Use scripts in `examples/` for integration testing with sandbox
 - **Test structure**: All tests use mocks for fast, reliable testing
 

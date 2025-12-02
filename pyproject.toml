@@ -63,3 +63,26 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 
+[tool.coverage.run]
+source = ["ebay_rest"]
+omit = [
+    "tests/*",
+    "examples/*",
+    "*/__pycache__/*",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
