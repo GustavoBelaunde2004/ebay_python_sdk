@@ -301,8 +301,8 @@ See `examples/example_pagination.py` for a runnable demo.
 - [x] Comprehensive unit test coverage
 - [ ] Additional Inventory & Account endpoints (offers, listings, etc.)
 - [ ] Integration tests with real API calls
-- [ ] BaseClient unit tests
-- [ ] Code coverage reporting
+- [x] BaseClient unit tests
+- [x] Code coverage reporting
 - [ ] Async client support
 - [ ] Publish to PyPI
 
