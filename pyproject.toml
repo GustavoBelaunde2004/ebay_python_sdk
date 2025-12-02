@@ -49,6 +49,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "requires_credentials: marks tests that require EBAY_CLIENT_ID and EBAY_CLIENT_SECRET",
+    "requires_user_token: marks tests that require EBAY_USER_ACCESS_TOKEN",
+]
 
 [tool.black]
 line-length = 100

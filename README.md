@@ -172,6 +172,15 @@ pytest --cov=ebay_rest --cov-report=term-missing
 pytest --cov=ebay_rest --cov-report=html
 # then open htmlcov/index.html in your browser
 
+# run integration tests (requires .env with credentials)
+pytest -m integration
+
+# run integration tests without user token requirements
+pytest -m "integration and not requires_user_token"
+
+# run integration tests with coverage
+pytest -m integration --cov=ebay_rest --cov-report=term-missing
+
 # lint / format
 ruff check .
 black .
@@ -181,9 +190,39 @@ mypy ebay_rest
 ```
 
 - **Unit tests**: ~105+ tests covering all API clients, auth, OAuth, pagination, and BaseClient
+- **Integration tests**: Real API calls against eBay sandbox (requires credentials in `.env`)
 - **Code coverage**: Run `pytest --cov=ebay_rest` to see coverage report
 - **Manual testing**: Use scripts in `examples/` for integration testing with sandbox
-- **Test structure**: All tests use mocks for fast, reliable testing
+- **Test structure**: Unit tests use mocks for fast testing; integration tests validate real API calls
+
+### Integration Tests
+
+Integration tests make real API calls against eBay sandbox to validate end-to-end functionality. They complement unit tests by ensuring the SDK works correctly with the actual API.
+
+**Setup:**
+1. Ensure your `.env` file contains `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`
+2. For Sell API tests (Inventory, Orders), also include `EBAY_USER_ACCESS_TOKEN`
+
+**Running Integration Tests:**
+```bash
+# Run all integration tests (skips if credentials missing)
+pytest -m integration
+
+# Run only tests that don't require user token
+pytest -m "integration and not requires_user_token"
+
+# Run with coverage
+pytest -m integration --cov=ebay_rest
+```
+
+**What's Tested:**
+- OAuth2 authentication flow (token refresh, expiration)
+- Browse API (search_items, get_item)
+- Inventory API (if user token available)
+- Orders API (if user token available)
+- Error handling with real API responses
+
+**Note:** Integration tests are marked with `@pytest.mark.integration` and will automatically skip if required credentials are not available. They are excluded from the default `pytest` run (use `-m integration` to run them).
 
 ## Usage Examples
 
