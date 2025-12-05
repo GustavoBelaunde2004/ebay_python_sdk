@@ -20,6 +20,16 @@ EBAY_USER_REFRESH_TOKEN=your_user_refresh_token_here
 # Defaults to common Sell API scopes if not provided
 # EBAY_USER_TOKEN_SCOPES=https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly
 
+# OAuth Authorization Code flow (for get_user_token.py script)
+# Redirect URI (RuName) from eBay Developer Portal - required for getting user tokens
+EBAY_REDIRECT_URI=your_encoded_ru_name_here
+
+# OAuth scopes for user consent (space-delimited, optional)
+# EBAY_OAUTH_SCOPES=https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly
+
+# Environment for OAuth helpers (sandbox or production, optional, defaults to sandbox)
+# EBAY_ENV=sandbox
+
 # Production credentials (only fill these when ready for production)
 # EBAY_PROD_CLIENT_ID=your_production_client_id_here
 # EBAY_PROD_CLIENT_SECRET=your_production_client_secret_here
