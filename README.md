@@ -26,17 +26,14 @@
 
 ## Features
 
-- ✅ **OAuth2 Authentication** - Client credentials grant with automatic token refresh, caching, and multi-scope support
-- ✅ **OAuth Authorization Code Flow** - Helper utilities for obtaining user tokens for Sell APIs
-- ✅ **Base HTTP Client** - Centralized GET/POST/PUT/DELETE with automatic auth headers, error mapping, and JSON parsing
-- ✅ **Browse API** - Search items and retrieve detailed item information (tested against sandbox)
-- ✅ **Orders API** - List and retrieve seller orders with typed Pydantic models
-- ✅ **Inventory API** - Full CRUD operations for inventory items including bulk operations
-- ✅ **Account API** - Access account profiles, privileges, and policy management
-- ✅ **Pagination Helper** - Generator and iterator utilities for seamless pagination across large result sets
-- ✅ **Type-Safe Models** - Pydantic models for all API responses with automatic validation
-- ✅ **Comprehensive Tests** - 46 unit tests covering all major functionality
-- ✅ **Example Scripts** - Ready-to-run examples for each API module
+- ✅ **OAuth2 Authentication** - Client credentials grant with automatic token refresh
+- ✅ **User Token Management** - Automatic refresh of expired user tokens (Sell APIs)
+- ✅ **Browse API** - Search items and retrieve detailed item information
+- ✅ **Orders API** - List and retrieve seller orders
+- ✅ **Inventory API** - Full CRUD operations for inventory items
+- ✅ **Account API** - Access account profiles, privileges, and policies
+- ✅ **Type-Safe Models** - Pydantic models for all API responses
+- ✅ **Comprehensive Tests** - 100+ unit and integration tests
 
 ## Architecture Overview
 
@@ -55,10 +52,9 @@
 └──────────┘  └────────────┘  └─────────────┘  └─────────────┘
 ```
 
-- `OAuth2Client` handles token management (Client Credentials grant for Buy APIs)
-- `oauth` module provides Authorization Code flow helpers for Sell APIs
-- `BaseClient` centralizes HTTP operations with consistent error handling
-- Each API client receives the shared `BaseClient` for making authenticated requests
+- `OAuth2Client` handles client credentials token management (Buy APIs)
+- `oauth` module provides Authorization Code flow helpers (Sell APIs)
+- `BaseClient` centralizes HTTP operations with automatic error handling and token refresh
 
 ## Quick Start
 
@@ -84,8 +80,9 @@ client = EbayClient(
     client_id=os.getenv("EBAY_CLIENT_ID"),
     client_secret=os.getenv("EBAY_CLIENT_SECRET"),
     sandbox=True,
-    # Optional: provide a user access token for Sell APIs
+    # Optional: provide user tokens for Sell APIs (with automatic refresh)
     user_access_token=os.getenv("EBAY_USER_ACCESS_TOKEN"),
+    user_refresh_token=os.getenv("EBAY_USER_REFRESH_TOKEN"),  # Recommended for auto-refresh
 )
 
 # Browse API: Search for items
@@ -102,13 +99,13 @@ for item in results.get('items', [])[:3]:
 | `EBAY_CLIENT_ID`         | Your sandbox/production App ID (client_id)                               |
 | `EBAY_CLIENT_SECRET`     | Your Cert ID (client_secret)                                             |
 | `EBAY_USER_ACCESS_TOKEN` | Optional user token for Sell APIs (from Authorization Code flow)         |
+| `EBAY_USER_REFRESH_TOKEN` | Optional refresh token for automatic token refresh (recommended)         |
 | `EBAY_REDIRECT_URI`      | URL-encoded Redirect URI (RuName) registered in eBay Developer Portal    |
 | `EBAY_OAUTH_SCOPES`      | Space-delimited scopes for user consent (e.g. `https://.../sell.inventory`) |
 | `EBAY_ENV`               | `sandbox` (default) or `production` for OAuth helpers                    |
 
-- Store them in `.env` (already gitignored).  
-- Helper scripts automatically call `dotenv.load_dotenv()`.
-- `examples/example_auth_test.py`, `examples/example_browse_test.py`, `examples/example_inventory_test.py`, `examples/example_orders_test.py` provide quick verification.
+- Store credentials in `.env` (gitignored). Helper scripts automatically load them.
+- Use `examples/get_user_token.py` to obtain user access and refresh tokens.
 
 ### OAuth scopes
 
@@ -122,145 +119,100 @@ for item in results.get('items', [])[:3]:
 
 ### Obtaining a Sell API user token
 
-1. In the eBay Developer Portal, register a redirect URI (RuName) for your app. Note the encoded value.
-2. Create a sandbox seller user if you haven't already:
-   - Portal path: **Develop → Tools → eBay Sandbox → Create Test Users**
-   - Choose “Seller” type, set a password via “Sandbox User Password” tool.
-3. Set these env vars:
-   ```
+1. Register a redirect URI (RuName) in the [eBay Developer Portal](https://developer.ebay.com/my/keys)
+2. Create a sandbox seller user: **Develop → Tools → eBay Sandbox → Create Test Users**
+3. Set environment variables:
+   ```env
    EBAY_CLIENT_ID=YourSandboxAppID
    EBAY_CLIENT_SECRET=YourSandboxCertID
    EBAY_REDIRECT_URI=YourEncodedRuName
    EBAY_OAUTH_SCOPES="https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.fulfillment"
    ```
-4. Alternatively, you can grab a sandbox user token from **Application Keys → Sandbox App → “User Tokens”** (uses eBay’s hosted OAuth UI).
-5. The script outputs an access token + refresh token. Store them securely (e.g., `.env` using `EBAY_USER_ACCESS_TOKEN`).
-6. Pass the access token to `EbayClient` (or call `client.set_user_access_token()`).
+4. Run the helper script:
+   ```bash
+   python examples/get_user_token.py
+   ```
+   This will open a browser for authorization and output both access and refresh tokens.
+5. Add tokens to `.env`:
+   ```env
+   EBAY_USER_ACCESS_TOKEN=your_access_token
+   EBAY_USER_REFRESH_TOKEN=your_refresh_token
+   ```
 
-When the access token expires, call `oauth.refresh_user_token()` with the refresh token to get a new one.
+### Automatic Token Refresh
 
-### Sandbox data checklist
+User access tokens expire after 2 hours. The SDK automatically refreshes them if you provide a refresh token:
 
-After the seller token is ready, populate the sandbox so Sell APIs have something to return:
+- **With refresh token**: Automatic refresh and retry on 401 errors (transparent to your code)
+- **Without refresh token**: Manual refresh required using `oauth.refresh_user_token()`
 
-1. **Create inventory items**
-   - Log into [Sandbox Seller Hub](https://sandbox.ebay.com/) with your seller account.
-   - Use the Inventory API (`examples/example_inventory_test.py`) or Seller Hub to add SKUs.
-2. **Create sample offers/listings**
-   - From Seller Hub → Listings → Create listing.
-   - Keep note of SKU/item IDs for testing.
-3. **Place sample orders**
-   - Create a sandbox buyer account (Develop → Tools → eBay Sandbox → Create Test Users).
-   - Sign in as the buyer, purchase the seller’s items (sandbox checkout uses fake funds).
-4. **Record useful IDs**
-   - SKU(s), offer IDs, order IDs for quick regression tests.
+Refresh tokens last ~18 months. Provide both tokens to `EbayClient` for seamless operation.
+
+### Sandbox Setup
+
+For Sell API testing, populate sandbox data via [Sandbox Seller Hub](https://sandbox.ebay.com/):
+- Create inventory items (SKUs)
+- Create listings/offers
+- Place test orders (create buyer account in Developer Portal)
 
 ## Development & Testing
 
 ```bash
-# install dependencies in editable mode
-python -m venv .venv && source .venv/bin/activate
+# Install dependencies
 pip install -e ".[dev]"
 
-# run automated tests (~105+ unit tests)
+# Run all tests
 pytest
 
-# run tests with coverage report
+# Run with coverage
 pytest --cov=ebay_rest --cov-report=term-missing
 
-# generate HTML coverage report
-pytest --cov=ebay_rest --cov-report=html
-# then open htmlcov/index.html in your browser
-
-# run integration tests (requires .env with credentials)
+# Run integration tests (requires .env with credentials)
 pytest -m integration
 
-# run integration tests without user token requirements
-pytest -m "integration and not requires_user_token"
+# Lint and format
+ruff check . && black .
 
-# run integration tests with coverage
-pytest -m integration --cov=ebay_rest --cov-report=term-missing
-
-# lint / format
-ruff check .
-black .
-
-# type checking
+# Type checking
 mypy ebay_rest
 ```
 
-- **Unit tests**: ~105+ tests covering all API clients, auth, OAuth, pagination, and BaseClient
-- **Integration tests**: Real API calls against eBay sandbox (requires credentials in `.env`)
-- **Code coverage**: Run `pytest --cov=ebay_rest` to see coverage report
-- **Manual testing**: Use scripts in `examples/` for integration testing with sandbox
-- **Test structure**: Unit tests use mocks for fast testing; integration tests validate real API calls
-
-### Integration Tests
-
-Integration tests make real API calls against eBay sandbox to validate end-to-end functionality. They complement unit tests by ensuring the SDK works correctly with the actual API.
-
-**Setup:**
-1. Ensure your `.env` file contains `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`
-2. For Sell API tests (Inventory, Orders), also include `EBAY_USER_ACCESS_TOKEN`
-
-**Running Integration Tests:**
-```bash
-# Run all integration tests (skips if credentials missing)
-pytest -m integration
-
-# Run only tests that don't require user token
-pytest -m "integration and not requires_user_token"
-
-# Run with coverage
-pytest -m integration --cov=ebay_rest
-```
-
-**What's Tested:**
-- OAuth2 authentication flow (token refresh, expiration)
-- Browse API (search_items, get_item)
-- Inventory API (if user token available)
-- Orders API (if user token available)
-- Error handling with real API responses
-
-**Note:** Integration tests are marked with `@pytest.mark.integration` and will automatically skip if required credentials are not available. They are excluded from the default `pytest` run (use `-m integration` to run them).
+- **Unit tests**: 100+ tests with mocks for fast execution
+- **Integration tests**: Real API calls against sandbox (requires credentials, skips if missing)
+- **Coverage**: Run `pytest --cov=ebay_rest` for detailed reports
 
 ## Usage Examples
 
-### Browse search + get item
+### Browse API
 
 ```python
 results = client.browse.search_items(query="mirrorless camera", limit=3)
 for item in results["items"]:
     print(item["title"], item.get("price", {}).get("value"))
 
-item_id = results["items"][0]["item_id"]
-details = client.browse.get_item(item_id=item_id)
-print(details["category_path"])
+item = client.browse.get_item(item_id=results["items"][0]["item_id"])
+print(item["category_path"])
 ```
 
-### Orders (requires Sell Fulfillment scope)
+### Orders API
 
 ```python
 orders = client.orders.list_orders(limit=10)
 if orders["orders"]:
-    first_order_id = orders["orders"][0]["order_id"]
-    order = client.orders.get_order(order_id=first_order_id)
+    order = client.orders.get_order(order_id=orders["orders"][0]["order_id"])
     print(order["buyer"]["username"])
-else:
-    print("No orders yet. Create sandbox orders to exercise this API.")
 ```
 
-### Inventory (requires Sell Inventory scope)
+### Inventory API
 
 ```python
-# List inventory items
+# List and get items
 inventory = client.inventory.list_inventory_items(limit=10)
 if inventory["inventory_items"]:
-    first_sku = inventory["inventory_items"][0]["sku"]
-    item = client.inventory.get_inventory_item(sku=first_sku)
+    item = client.inventory.get_inventory_item(sku=inventory["inventory_items"][0]["sku"])
     print(item["availability"]["ship_to_location_availability"]["quantity"])
 
-# Create a new inventory item
+# Create item
 client.inventory.create_inventory_item(
     sku="DEMO-SKU-001",
     inventory_item={
@@ -270,50 +222,37 @@ client.inventory.create_inventory_item(
     },
 )
 
-# Bulk create/update multiple items
+# Bulk operations
 client.inventory.bulk_create_or_replace_inventory_item([
     {"sku": "SKU-001", "condition": "NEW", "product": {"title": "Item 1"}},
     {"sku": "SKU-002", "condition": "USED", "product": {"title": "Item 2"}},
 ])
 ```
 
-### Account (requires Sell Account scope)
+### Account API
 
 ```python
-# Get account profile and privileges
 profile = client.account.get_account_profile()
 print(f"Account type: {profile['account_type']}")
 
-# List return policies
-return_policies = client.account.list_return_policies(marketplace_id="EBAY_US")
-
-# List payment policies
-payment_policies = client.account.list_payment_policies(marketplace_id="EBAY_US")
-
-# List shipping policies
-shipping_policies = client.account.list_shipping_policies(marketplace_id="EBAY_US")
+policies = client.account.list_return_policies(marketplace_id="EBAY_US")
 ```
 
-> Tip: call `client.set_user_access_token("...")` at runtime if you fetch the user token elsewhere.
-
-### Pagination helper
+### Pagination
 
 ```python
 from ebay_rest.pagination import paginate
 
-# Iterate through all items automatically
 for item in paginate(
     client.browse.search_items,
     query="laptop",
-    limit=100,              # total items to yield
+    limit=100,
     items_key="items",
     limit_param="limit",
     offset_param="offset",
 ):
     print(item["title"])
 ```
-
-See `examples/example_pagination.py` for a runnable demo.
 
 ## API Coverage
 
@@ -330,37 +269,22 @@ See `examples/example_pagination.py` for a runnable demo.
 
 ## Roadmap
 
-- [x] Auth + Base client
-- [x] Browse API (search + item details)
-- [x] Orders API (list + get)
-- [x] Inventory API (full CRUD + bulk operations)
-- [x] Account API (profile + policies)
-- [x] Pagination helpers
+- [x] Core APIs (Browse, Orders, Inventory, Account)
 - [x] OAuth Authorization Code flow helpers
-- [x] Comprehensive unit test coverage
-- [ ] Additional Inventory & Account endpoints (offers, listings, etc.)
-- [ ] Integration tests with real API calls
-- [x] BaseClient unit tests
-- [x] Code coverage reporting
+- [x] Automatic user token refresh
+- [x] Comprehensive test coverage (100+ tests)
+- [ ] Additional endpoints (offers, listings, etc.)
 - [ ] Async client support
-- [ ] Publish to PyPI
+- [ ] PyPI publication
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines. In short:
+1. Fork and create a feature branch
+2. Install dev dependencies: `pip install -e ".[dev]"`
+3. Run checks: `pytest && ruff check . && black . && mypy ebay_rest`
+4. Open a PR with clear description
 
-1. Fork the repo and create a feature branch.
-2. Install dev dependencies (`pip install -e ".[dev]"`).
-3. Run the checks before opening a PR:
-   ```bash
-   pytest
-   ruff check .
-   black .
-   mypy ebay_rest
-   ```
-4. Describe how to exercise the change (especially if it touches Sell APIs / sandbox data).
-
-Bug reports and feature requests are welcome via GitHub Issues.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details. Bug reports and feature requests welcome via GitHub Issues.
 
 ## License
 
@@ -368,6 +292,5 @@ MIT © Gustavo Belaunde. See [LICENSE](LICENSE) for details.
 
 ## Credits
 
-- Built with ❤️ using [eBay REST APIs](https://developer.ebay.com/api-docs)
-- Inspired by SDK patterns from Stripe, Supabase, AWS
+Built using [eBay REST APIs](https://developer.ebay.com/api-docs)
 
