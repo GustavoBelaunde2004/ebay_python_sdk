@@ -14,6 +14,7 @@ from ebay_rest.errors import (
     ServerError,
     ValidationError,
 )
+from ebay_rest import oauth
 
 
 class TestBaseClientInit:
@@ -1054,4 +1055,326 @@ class TestBaseClientDelete:
             client.delete("/test/path")
 
         assert "Network error during DELETE request" in str(exc_info.value)
+
+
+class TestBaseClientAutoRefresh:
+    """Test automatic user token refresh on 401 errors."""
+
+    @patch("ebay_rest.base_client.oauth.refresh_user_token")
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_get_auto_refresh_on_401(
+        self, mock_session_class, mock_refresh_token, mock_oauth_client
+    ):
+        """Test that GET automatically refreshes token on 401 and retries."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        # First request returns 401
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+
+        # Second request (after refresh) succeeds
+        mock_response_200 = MagicMock()
+        mock_response_200.status_code = 200
+        mock_response_200.text = '{"data": "success"}'
+        mock_response_200.json.return_value = {"data": "success"}
+
+        mock_session.get.side_effect = [mock_response_401, mock_response_200]
+
+        # Mock refresh token response
+        mock_refresh_token.return_value = {
+            "access_token": "new_token_123",
+            "expires_in": 7200,
+        }
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            user_refresh_token="refresh_token_123",
+            user_token_scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+        )
+
+        result = client.get("/test/path")
+
+        # Should succeed after refresh
+        assert result == {"data": "success"}
+        # Should have called refresh
+        mock_refresh_token.assert_called_once()
+        # Should have made 2 requests (original + retry)
+        assert mock_session.get.call_count == 2
+        # Token should be updated
+        assert client.user_access_token == "new_token_123"
+
+    @patch("ebay_rest.base_client.oauth.refresh_user_token")
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_post_auto_refresh_on_401(
+        self, mock_session_class, mock_refresh_token, mock_oauth_client
+    ):
+        """Test that POST automatically refreshes token on 401 and retries."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        # First request returns 401
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+
+        # Second request succeeds
+        mock_response_201 = MagicMock()
+        mock_response_201.status_code = 201
+        mock_response_201.text = '{"id": "123"}'
+        mock_response_201.json.return_value = {"id": "123"}
+
+        mock_session.post.side_effect = [mock_response_401, mock_response_201]
+
+        mock_refresh_token.return_value = {
+            "access_token": "new_token_456",
+            "expires_in": 7200,
+        }
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            user_refresh_token="refresh_token_123",
+            user_token_scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+        )
+
+        result = client.post("/test/path", json={"name": "test"})
+
+        assert result == {"id": "123"}
+        mock_refresh_token.assert_called_once()
+        assert mock_session.post.call_count == 2
+
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_get_no_refresh_without_refresh_token(self, mock_session_class, mock_oauth_client):
+        """Test that 401 error is raised if no refresh token is available."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+        mock_session.get.return_value = mock_response_401
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            # No refresh token
+        )
+
+        with pytest.raises(AuthError) as exc_info:
+            client.get("/test/path")
+
+        assert exc_info.value.status_code == 401
+        # Should only make one request (no retry)
+        assert mock_session.get.call_count == 1
+
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_get_no_refresh_without_user_token(self, mock_session_class, mock_oauth_client):
+        """Test that 401 error is raised if not using user token."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+        mock_session.get.return_value = mock_response_401
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            # No user token (using client credentials)
+        )
+
+        with pytest.raises(AuthError) as exc_info:
+            client.get("/test/path")
+
+        assert exc_info.value.status_code == 401
+        # Should only make one request (no retry)
+        assert mock_session.get.call_count == 1
+
+    @patch("ebay_rest.base_client.oauth.refresh_user_token")
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_refresh_failure_raises_error(
+        self, mock_session_class, mock_refresh_token, mock_oauth_client
+    ):
+        """Test that if refresh fails, original error is raised."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+        mock_session.get.return_value = mock_response_401
+
+        # Refresh fails
+        mock_refresh_token.side_effect = AuthError("Refresh token expired")
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            user_refresh_token="refresh_token_123",
+            user_token_scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+        )
+
+        with pytest.raises(AuthError) as exc_info:
+            client.get("/test/path")
+
+        # Should raise original 401 error, not refresh error
+        assert exc_info.value.status_code == 401
+        mock_refresh_token.assert_called_once()
+
+    @patch("ebay_rest.base_client.oauth.refresh_user_token")
+    @patch("ebay_rest.base_client.requests.Session")
+    def test_retry_after_refresh_still_fails(
+        self, mock_session_class, mock_refresh_token, mock_oauth_client
+    ):
+        """Test that if retry after refresh still fails, error is raised."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        # Both requests return 401
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = '{"error": "invalid_token"}'
+        mock_response_401.json.return_value = {"error": "invalid_token"}
+        mock_session.get.return_value = mock_response_401
+
+        # Refresh succeeds
+        mock_refresh_token.return_value = {
+            "access_token": "new_token_123",
+            "expires_in": 7200,
+        }
+
+        mock_oauth_client.build_auth_header = MagicMock(
+            return_value={"Authorization": "Bearer auth_token"}
+        )
+
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            user_refresh_token="refresh_token_123",
+            user_token_scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+        )
+
+        with pytest.raises(AuthError) as exc_info:
+            client.get("/test/path")
+
+        assert exc_info.value.status_code == 401
+        # Should have tried refresh and retry
+        mock_refresh_token.assert_called_once()
+        assert mock_session.get.call_count == 2
+
+    def test_refresh_user_token_if_needed_success(self, mock_oauth_client):
+        """Test _refresh_user_token_if_needed() with successful refresh."""
+        with patch("ebay_rest.base_client.oauth.refresh_user_token") as mock_refresh:
+            mock_refresh.return_value = {
+                "access_token": "new_token_789",
+                "expires_in": 7200,
+                "refresh_token": "new_refresh_token",
+            }
+
+            client = BaseClient(
+                auth_client=mock_oauth_client,
+                base_url="https://api.ebay.com",
+                sandbox=True,
+                user_access_token="old_token",
+                user_refresh_token="refresh_token_123",
+                user_token_scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+                client_id="test_client_id",
+                client_secret="test_client_secret",
+            )
+
+            new_token = client._refresh_user_token_if_needed()
+
+            assert new_token == "new_token_789"
+            assert client.user_access_token == "new_token_789"
+            assert client.user_refresh_token == "new_refresh_token"
+            mock_refresh.assert_called_once_with(
+                client_id="test_client_id",
+                client_secret="test_client_secret",
+                refresh_token="refresh_token_123",
+                scopes=["https://api.ebay.com/oauth/api_scope/sell.inventory.readonly"],
+                environment="sandbox",
+            )
+
+    def test_refresh_user_token_if_needed_no_refresh_token(self, mock_oauth_client):
+        """Test _refresh_user_token_if_needed() raises error if no refresh token."""
+        client = BaseClient(
+            auth_client=mock_oauth_client,
+            base_url="https://api.ebay.com",
+            user_access_token="old_token",
+            # No refresh token
+        )
+
+        with pytest.raises(AuthError, match="Refresh token not available"):
+            client._refresh_user_token_if_needed()
+
+    def test_refresh_user_token_default_scopes(self, mock_oauth_client):
+        """Test that default scopes are used if not provided."""
+        with patch("ebay_rest.base_client.oauth.refresh_user_token") as mock_refresh:
+            mock_refresh.return_value = {
+                "access_token": "new_token",
+                "expires_in": 7200,
+            }
+
+            client = BaseClient(
+                auth_client=mock_oauth_client,
+                base_url="https://api.ebay.com",
+                sandbox=True,
+                user_access_token="old_token",
+                user_refresh_token="refresh_token_123",
+                # No scopes provided
+                client_id="test_client_id",
+                client_secret="test_client_secret",
+            )
+
+            client._refresh_user_token_if_needed()
+
+            # Should use default scopes
+            call_args = mock_refresh.call_args
+            scopes = call_args[1]["scopes"]
+            assert len(scopes) == 3
+            assert "sell.inventory.readonly" in scopes[0]
+            assert "sell.fulfillment.readonly" in scopes[1]
+            assert "sell.account.readonly" in scopes[2]
 

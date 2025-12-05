@@ -8,7 +8,17 @@ EBAY_CLIENT_SECRET=your_sandbox_client_secret_here
 
 # User access token for Sell APIs (Inventory, Orders, Account)
 # Get from: https://developer.ebay.com/my/keys → Your Sandbox App → User Tokens
+# Note: Access tokens expire after 2 hours. Store the refresh token to enable automatic refresh.
 EBAY_USER_ACCESS_TOKEN=your_user_access_token_here
+
+# User refresh token for automatic token refresh (optional but recommended)
+# Obtained together with access token during Authorization Code flow
+# Refresh tokens last ~18 months and allow automatic renewal of access tokens
+EBAY_USER_REFRESH_TOKEN=your_user_refresh_token_here
+
+# OAuth scopes for token refresh (optional)
+# Defaults to common Sell API scopes if not provided
+# EBAY_USER_TOKEN_SCOPES=https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly
 
 # Production credentials (only fill these when ready for production)
 # EBAY_PROD_CLIENT_ID=your_production_client_id_here

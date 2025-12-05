@@ -13,6 +13,7 @@ from ebay_rest.errors import (
     ServerError,
     ValidationError,
 )
+from ebay_rest import oauth
 
 
 class BaseClient:
@@ -28,6 +29,10 @@ class BaseClient:
         base_url: str,
         sandbox: bool = False,
         user_access_token: Optional[str] = None,
+        user_refresh_token: Optional[str] = None,
+        user_token_scopes: Optional[list[str]] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
     ):
         """
         Initialize base client.
@@ -36,6 +41,11 @@ class BaseClient:
             auth_client: OAuth2Client instance for authentication
             base_url: Base URL for API requests
             sandbox: Whether to use sandbox environment
+            user_access_token: Optional user access token for Sell APIs
+            user_refresh_token: Optional refresh token for automatic token refresh
+            user_token_scopes: Optional list of OAuth scopes for token refresh
+            client_id: Optional client ID for token refresh (from auth_client if not provided)
+            client_secret: Optional client secret for token refresh (from auth_client if not provided)
         """
         self.auth_client = auth_client
         self.base_url = base_url.rstrip("/")
@@ -43,6 +53,11 @@ class BaseClient:
         self.session = requests.Session()
         self.timeout = 30  # Default timeout in seconds
         self.user_access_token = user_access_token
+        self.user_refresh_token = user_refresh_token
+        self.user_token_scopes = user_token_scopes or []
+        # Store client credentials for refresh calls
+        self.client_id = client_id or auth_client.client_id
+        self.client_secret = client_secret or auth_client.client_secret
 
     def _get_headers(self) -> dict[str, str]:
         """
@@ -65,14 +80,77 @@ class BaseClient:
 
         return headers
 
-    def set_user_access_token(self, token: Optional[str]) -> None:
+    def set_user_access_token(
+        self,
+        token: Optional[str],
+        refresh_token: Optional[str] = None,
+        scopes: Optional[list[str]] = None,
+    ) -> None:
         """
         Override the access token used for requests (e.g., Sell API user token).
 
         Args:
             token: Bearer token string or None to revert to client credentials.
+            refresh_token: Optional refresh token for automatic token refresh.
+            scopes: Optional list of OAuth scopes for token refresh.
         """
         self.user_access_token = token
+        if refresh_token is not None:
+            self.user_refresh_token = refresh_token
+        if scopes is not None:
+            self.user_token_scopes = scopes
+
+    def _refresh_user_token_if_needed(self) -> str:
+        """
+        Refresh user access token using refresh token if available.
+
+        Returns:
+            New access token string
+
+        Raises:
+            AuthError: If refresh token is not available or refresh fails
+        """
+        if not self.user_refresh_token:
+            raise AuthError("Refresh token not available for automatic token refresh")
+
+        if not self.user_token_scopes:
+            # Default to common Sell API scopes if not provided
+            self.user_token_scopes = [
+                "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
+                "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly",
+                "https://api.ebay.com/oauth/api_scope/sell.account.readonly",
+            ]
+
+        try:
+            # Call refresh_user_token
+            environment = "sandbox" if self.sandbox else "production"
+            token_response = oauth.refresh_user_token(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                refresh_token=self.user_refresh_token,
+                scopes=self.user_token_scopes,
+                environment=environment,
+            )
+
+            # Extract new access token
+            new_access_token = token_response.get("access_token")
+            if not new_access_token:
+                raise AuthError("Access token not found in refresh response")
+
+            # Update stored access token
+            self.user_access_token = new_access_token
+
+            # Optionally update refresh token if a new one is provided
+            new_refresh_token = token_response.get("refresh_token")
+            if new_refresh_token:
+                self.user_refresh_token = new_refresh_token
+
+            return new_access_token
+
+        except requests.RequestException as e:
+            raise AuthError(f"Network error during token refresh: {str(e)}")
+        except Exception as e:
+            raise AuthError(f"Failed to refresh user token: {str(e)}")
 
     def _handle_response(self, response: requests.Response) -> dict[str, Any]:
         """
@@ -188,6 +266,25 @@ class BaseClient:
             # Handle response and return data
             return self._handle_response(response)
 
+        except AuthError as e:
+            # If 401 error and using user token with refresh token available, try to refresh
+            if (
+                e.status_code == 401
+                and self.user_access_token
+                and self.user_refresh_token
+            ):
+                try:
+                    # Refresh the token
+                    self._refresh_user_token_if_needed()
+                    # Retry the request with new token
+                    headers = self._get_headers()
+                    response = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
+                    return self._handle_response(response)
+                except Exception:
+                    # If refresh or retry fails, raise original error
+                    raise e
+            raise
+
         except requests.RequestException as e:
             raise EbayAPIError(f"Network error during GET request: {str(e)}")
 
@@ -217,6 +314,25 @@ class BaseClient:
 
             # Handle response and return data
             return self._handle_response(response)
+
+        except AuthError as e:
+            # If 401 error and using user token with refresh token available, try to refresh
+            if (
+                e.status_code == 401
+                and self.user_access_token
+                and self.user_refresh_token
+            ):
+                try:
+                    # Refresh the token
+                    self._refresh_user_token_if_needed()
+                    # Retry the request with new token
+                    headers = self._get_headers()
+                    response = self.session.post(url, json=json, headers=headers, timeout=self.timeout)
+                    return self._handle_response(response)
+                except Exception:
+                    # If refresh or retry fails, raise original error
+                    raise e
+            raise
 
         except requests.RequestException as e:
             raise EbayAPIError(f"Network error during POST request: {str(e)}")
@@ -248,6 +364,25 @@ class BaseClient:
             # Handle response and return data
             return self._handle_response(response)
 
+        except AuthError as e:
+            # If 401 error and using user token with refresh token available, try to refresh
+            if (
+                e.status_code == 401
+                and self.user_access_token
+                and self.user_refresh_token
+            ):
+                try:
+                    # Refresh the token
+                    self._refresh_user_token_if_needed()
+                    # Retry the request with new token
+                    headers = self._get_headers()
+                    response = self.session.put(url, json=json, headers=headers, timeout=self.timeout)
+                    return self._handle_response(response)
+                except Exception:
+                    # If refresh or retry fails, raise original error
+                    raise e
+            raise
+
         except requests.RequestException as e:
             raise EbayAPIError(f"Network error during PUT request: {str(e)}")
 
@@ -277,6 +412,25 @@ class BaseClient:
 
             # Handle response and return data
             return self._handle_response(response)
+
+        except AuthError as e:
+            # If 401 error and using user token with refresh token available, try to refresh
+            if (
+                e.status_code == 401
+                and self.user_access_token
+                and self.user_refresh_token
+            ):
+                try:
+                    # Refresh the token
+                    self._refresh_user_token_if_needed()
+                    # Retry the request with new token
+                    headers = self._get_headers()
+                    response = self.session.delete(url, params=params, headers=headers, timeout=self.timeout)
+                    return self._handle_response(response)
+                except Exception:
+                    # If refresh or retry fails, raise original error
+                    raise e
+            raise
 
         except requests.RequestException as e:
             raise EbayAPIError(f"Network error during DELETE request: {str(e)}")

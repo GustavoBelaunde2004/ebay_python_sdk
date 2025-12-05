@@ -55,9 +55,32 @@ def user_access_token():
 
 
 @pytest.fixture
-def sandbox_client_with_user_token(sandbox_credentials, user_access_token):
+def user_refresh_token():
     """
-    Create a real EbayClient instance with user access token.
+    Get user refresh token from environment variables.
+
+    Returns None if not available.
+    """
+    return os.getenv("EBAY_USER_REFRESH_TOKEN")
+
+
+@pytest.fixture
+def user_token_scopes():
+    """
+    Get user token scopes from environment variables.
+
+    Returns None if not available (defaults will be used).
+    """
+    scopes_str = os.getenv("EBAY_USER_TOKEN_SCOPES")
+    if scopes_str:
+        return scopes_str.split()
+    return None
+
+
+@pytest.fixture
+def sandbox_client_with_user_token(sandbox_credentials, user_access_token, user_refresh_token, user_token_scopes):
+    """
+    Create a real EbayClient instance with user access token and optional refresh token.
 
     Skips test if user token is not available.
     """
@@ -69,6 +92,8 @@ def sandbox_client_with_user_token(sandbox_credentials, user_access_token):
         client_secret=sandbox_credentials["client_secret"],
         sandbox=True,
         user_access_token=user_access_token,
+        user_refresh_token=user_refresh_token,
+        user_token_scopes=user_token_scopes,
     )
     return client
 

@@ -21,6 +21,8 @@ class EbayClient:
         client_secret: str,
         sandbox: bool = False,
         user_access_token: str | None = None,
+        user_refresh_token: str | None = None,
+        user_token_scopes: list[str] | None = None,
     ):
         """
         Initialize eBay client.
@@ -29,6 +31,10 @@ class EbayClient:
             client_id: eBay application client ID
             client_secret: eBay application client secret
             sandbox: Whether to use sandbox environment (default: False)
+            user_access_token: Optional user access token for Sell APIs
+            user_refresh_token: Optional refresh token for automatic token refresh
+            user_token_scopes: Optional list of OAuth scopes for token refresh.
+                Defaults to common Sell API scopes if not provided.
         """
         self.client_id = client_id
         self.client_secret = client_secret
@@ -52,6 +58,10 @@ class EbayClient:
             base_url=base_url,
             sandbox=sandbox,
             user_access_token=user_access_token,
+            user_refresh_token=user_refresh_token,
+            user_token_scopes=user_token_scopes,
+            client_id=client_id,
+            client_secret=client_secret,
         )
 
         # Initialize API module clients
@@ -60,13 +70,23 @@ class EbayClient:
         self.orders = OrdersClient(base_client=self.base_client, sandbox=sandbox)
         self.account = AccountClient(base_client=self.base_client, sandbox=sandbox)
 
-    def set_user_access_token(self, token: str | None) -> None:
+    def set_user_access_token(
+        self,
+        token: str | None,
+        refresh_token: str | None = None,
+        scopes: list[str] | None = None,
+    ) -> None:
         """
         Override the access token used for Sell APIs.
 
         Pass a user token obtained via the Authorization Code flow to call
         seller endpoints (inventory, orders, account). Pass None to revert
         to application (client-credentials) tokens.
+
+        Args:
+            token: User access token string or None to revert to client credentials
+            refresh_token: Optional refresh token for automatic token refresh
+            scopes: Optional list of OAuth scopes for token refresh
         """
-        self.base_client.set_user_access_token(token)
+        self.base_client.set_user_access_token(token, refresh_token=refresh_token, scopes=scopes)
 
